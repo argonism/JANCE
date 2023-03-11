@@ -1,15 +1,16 @@
 import sys
 sys.path += ['../']
 import torch
+import torch.nn.functional as F
 from torch import nn
 from transformers import (
-    RobertaConfig,
-    RobertaModel,
-    RobertaForSequenceClassification,
-    RobertaTokenizer,
+    BertConfig,
     BertModel,
     BertTokenizer,
-    BertConfig
+    RobertaConfig,
+    XLMRobertaConfig,
+    XLMRobertaForSequenceClassification,
+    XLMRobertaTokenizer,
 )
 import torch.nn.functional as F
 from data.process_fn import triple_process_fn, triple2dual_process_fn
@@ -42,6 +43,8 @@ class EmbeddingMixin:
 
     def masked_mean_or_first(self, emb_all, mask):
         # emb_all is a tuple from bert - sequence output, pooler
+        if hasattr(emb_all, "pooler_output"):
+            emb_all = (emb_all.last_hidden_state,  emb_all.pooler_output)
         assert isinstance(emb_all, tuple)
         if self.use_mean:
             return self.masked_mean(emb_all[0], mask)
@@ -134,14 +137,14 @@ class NLL_MultiChunk(EmbeddingMixin):
         return (loss.mean(),)
 
 
-class RobertaDot_NLL_LN(NLL, RobertaForSequenceClassification):
+class RobertaDot_NLL_LN(NLL, XLMRobertaForSequenceClassification):
     """None
     Compress embedding to 200d, then computes NLL loss.
     """
 
     def __init__(self, config, model_argobj=None):
         NLL.__init__(self, model_argobj)
-        RobertaForSequenceClassification.__init__(self, config)
+        XLMRobertaForSequenceClassification.__init__(self, config)
         self.embeddingHead = nn.Linear(config.hidden_size, 768)
         self.norm = nn.LayerNorm(768)
         self.apply(self._init_weights)
@@ -287,7 +290,7 @@ default_process_fn = triple_process_fn
 
 
 class MSMarcoConfig:
-    def __init__(self, name, model, process_fn=default_process_fn, use_mean=True, tokenizer_class=RobertaTokenizer, config_class=RobertaConfig):
+    def __init__(self, name, model, process_fn=default_process_fn, use_mean=True, tokenizer_class=XLMRobertaTokenizer, config_class=XLMRobertaConfig):
         self.name = name
         self.process_fn = process_fn
         self.model_class = model
